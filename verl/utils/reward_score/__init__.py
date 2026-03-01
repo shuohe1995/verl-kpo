@@ -41,9 +41,6 @@ def default_compute_score(
     Raises:
         NotImplementedError: If the reward function is not implemented for the given data source.
     """
-    # Normalize potential numpy scalar/string wrappers from parquet metadata.
-    data_source = str(data_source)
-
     if data_source == "openai/gsm8k":
         from . import gsm8k
 
@@ -59,9 +56,7 @@ def default_compute_score(
 
         # from . import math_verify
         # res = math_verify.compute_score(solution_str, ground_truth)
-    elif data_source in ["math_dapo", "new_math_dapo", "math", "math_dapo_reasoning"] or data_source.startswith(
-        "aime"
-    ):
+    elif data_source in ["math_dapo", "math", "math_dapo_reasoning"] or data_source.startswith("aime"):
         from . import math_dapo
 
         res = math_dapo.compute_score(solution_str, ground_truth)

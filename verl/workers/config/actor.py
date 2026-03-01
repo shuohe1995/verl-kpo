@@ -109,9 +109,6 @@ class ActorConfig(BaseConfig):
         clip_ratio (float): PPO clipping ratio for policy loss.
         clip_ratio_low (float): Lower bound for PPO clipping ratio.
         clip_ratio_high (float): Upper bound for PPO clipping ratio.
-        is_clip (bool): Whether to enable clipping in KPO-style policy loss.
-        kalman_Q (float): Kalman process noise used by KPO policy loss.
-        kalman_R (float): Kalman observation noise used by KPO policy loss.
         policy_loss (PolicyLossConfig): Configuration for policy loss computation.
         clip_ratio_c (float): Clipping ratio for critic loss.
         loss_agg_mode (str): Loss aggregation mode. Options: 'token-mean', 'sample-mean'.
@@ -153,9 +150,6 @@ class ActorConfig(BaseConfig):
     clip_ratio: float = 0.2
     clip_ratio_low: float = 0.2
     clip_ratio_high: float = 0.2
-    is_clip: bool = True
-    kalman_Q: float = 1e-6
-    kalman_R: float = 1.0
     freeze_vision_tower: bool = False
     policy_loss: PolicyLossConfig = field(default_factory=PolicyLossConfig)
     clip_ratio_c: float = 3.0

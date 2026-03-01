@@ -79,15 +79,6 @@ def get_policy_loss_fn(name):
     """
     loss_name = name
     if loss_name not in POLICY_LOSS_REGISTRY:
-        # Lazy load KPO from recipe when using recipe.kpo
-        if loss_name == "kpo":
-            try:
-                from recipe.kpo import core_algos as kpo_core_algos
-                return kpo_core_algos.POLICY_LOSS_REGISTRY["kpo"]
-            except ImportError as e:
-                raise ValueError(
-                    f"loss_mode=kpo requires the KPO recipe. Run with `python -m recipe.kpo.main_kpo` or install recipe: {e}"
-                ) from e
         raise ValueError(
             f"Unsupported loss mode: {loss_name}. Supported modes are: {list(POLICY_LOSS_REGISTRY.keys())}"
         )
