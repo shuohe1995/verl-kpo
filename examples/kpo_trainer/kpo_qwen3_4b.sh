@@ -3,8 +3,8 @@ set -xeuo pipefail
 MODE=${1:-train}
 if [ "$MODE" == "eval" ] || [ "$MODE" == "evaluation" ]; then
     echo "Running in evaluation mode"
-    train_path=/mnt/raid/data/shuo.he/math/train.parquet
-    test_path=/mnt/raid/data/shuo.he/math/test.parquet
+    train_path=$HOME/verl/data/math/train.parquet
+    test_path=$HOME/verl/data/math/test.parquet
     train_batch_size=32
     val_batch_size=64
     val_before_train=True
@@ -12,15 +12,14 @@ if [ "$MODE" == "eval" ] || [ "$MODE" == "evaluation" ]; then
     val_n_resp_per_prompt=16
 else
     echo "Running in training mode"
-    train_path=/mnt/raid/data/shuo.he/math/train.parquet
-    test_path=/mnt/raid/data/shuo.he/math/test_sampled.parquet
+    train_path=$HOME/verl/data/math/train.parquet
+    test_path=$HOME/verl/data/math/test_sampled.parquet
     train_batch_size=32
     val_batch_size=110
     val_before_train=false
     n_resp_per_prompt=8
     val_n_resp_per_prompt=1
 fi
-
 
 # can make training faster, depends on your infrastructure
 export NCCL_IBEXT_DISABLE=1

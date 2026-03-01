@@ -3,8 +3,8 @@ set -xeuo pipefail
 MODE=${1:-train}
 if [ "$MODE" == "eval" ] || [ "$MODE" == "evaluation" ]; then
     echo "Running in evaluation mode"
-    train_path=/mnt/raid/data/shuo.he/math/train.parquet
-    test_path=/mnt/raid/data/shuo.he/math/test.parquet
+    train_path=$HOME/verl/data/math/train.parquet
+    test_path=$HOME/verl/data/math/test.parquet
     train_batch_size=32
     val_batch_size=64
     val_before_train=True
@@ -12,8 +12,8 @@ if [ "$MODE" == "eval" ] || [ "$MODE" == "evaluation" ]; then
     val_n_resp_per_prompt=16
 else
     echo "Running in training mode"
-    train_path=/mnt/raid/data/shuo.he/math/train.parquet
-    test_path=/mnt/raid/data/shuo.he/math/test_sampled.parquet
+    train_path=$HOME/verl/data/math/train.parquet
+    test_path=$HOME/verl/data/math/test_sampled.parquet
     train_batch_size=32
     val_batch_size=110
     val_before_train=false
@@ -90,7 +90,7 @@ overlong_penalty_factor=1.0
 
 # Paths and namings
 SFT_MODEL=$(basename $MODEL_PATH)
-exp_name="${loss_mode}-epslow-${clip_ratio_low}-epshigh-${clip_ratio_high}-${SFT_MODEL}-now-noadaclip-causal-q1e-6-r1"
+exp_name="${loss_mode}-clip-${is_clip}-epslow-${clip_ratio_low}-epshigh-${clip_ratio_high}-q1e-6-r1-${SFT_MODEL}"
 CKPTS_DIR=/mnt/raid/data/shuohe/checkpoints/${loss_mode}/${exp_name}
 #ollout_data_dir=/mnt/raid/data/shuohe/rollout_data/${exp_name}
 
@@ -110,7 +110,7 @@ gen_tp=1
 entropy_checkpointing=true # This enables entropy recomputation specifically for the entropy calculation, lowering memory usage during training.
 
 
-python recipe/kpo/data_preprocess/drmas_math.py --local_dir /mnt/raid/data/shuo.he/math
+python recipe/kpo/data_preprocess/drmas_math.py --local_dir $HOME/verl/data/math
 
 
 # set the paths
