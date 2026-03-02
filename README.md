@@ -62,6 +62,7 @@ verl/
    | `WANDB_DIR` | Directory for W&B local cache and checkpoints | `export WANDB_DIR=/path/to/checkpoints` |
    | `CUDA_VISIBLE_DEVICES` | Comma-separated list of visible GPUs | `export CUDA_VISIBLE_DEVICES=0,1` |
    | `HF_HOME` | Hugging Face cache directory (models, tokenizers, etc.) | `export HF_HOME=/path/to/hf_cache` |
+   | `CKPTS_DIR` | Directory for saving training checkpoints (trainer.default_local_dir) | `CKPTS_DIR=/path/to/checkpoints` |
 
 3. **Training** (from repo root):
    ```bash
