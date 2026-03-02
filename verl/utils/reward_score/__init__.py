@@ -59,7 +59,42 @@ def default_compute_score(
 
         # from . import math_verify
         # res = math_verify.compute_score(solution_str, ground_truth)
-    elif data_source in ["math_dapo", "new_math_dapo", "math", "math_dapo_reasoning"] or data_source.startswith(
+    elif data_source in ["math_kpo"]:
+        from . import kpo_math_reward
+
+        RewardMathFn = kpo_math_reward.RewardMathFn
+        RewardConfig = kpo_math_reward.RewardConfig
+
+        config_kwargs = {}
+        if extra_info and isinstance(extra_info, dict):
+
+            config_params = ["apply_format_reward", "correct_reward", "incorrect_reward", 
+                           "format_error_reward", "unk_error_reward", "toolcall_bonus"]
+            for param in config_params:
+                if param in extra_info:
+                    config_kwargs[param] = extra_info[param]
+        
+        for param in ["apply_format_reward", "correct_reward", "incorrect_reward", 
+                     "format_error_reward", "unk_error_reward", "toolcall_bonus"]:
+            if param in kwargs:
+                config_kwargs[param] = kwargs[param]
+        
+        config = RewardConfig(**config_kwargs)
+        reward_fn = RewardMathFn(config)
+        
+        task_info = {
+            "problem": kwargs.get("problem", ""), 
+            "ground_truth": ground_truth,
+            "data_source": data_source,
+            "problem_type": kwargs.get("problem_type", "math"),
+            "has_toolcall": kwargs.get("has_toolcall", False) 
+        }
+
+        if extra_info and isinstance(extra_info, dict):
+            task_info.update(extra_info)
+        
+        res, _ = reward_fn(task_info, solution_str)
+    elif data_source in ["math_dapo", "math", "math_dapo_reasoning"] or data_source.startswith(
         "aime"
     ):
         from . import math_dapo

@@ -9,7 +9,7 @@ from datasets import concatenate_datasets
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--local_dir", default="/seu_share2/home/fenglei/101013989/verl_agent/datasets/math/")
+    parser.add_argument("--local_dir", default="")
     parser.add_argument("--hdfs_dir", default=None)
 
     args = parser.parse_args()
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             #assert "Let's think step by step and output" not in question
             ground_truth = reward_model["ground_truth"]
             data = {
-                "data_source": 'new_math_dapo',
+                "data_source": 'math_kpo',
                 "data_source2": data_source,
                 "ability": ability,
                 #"reward_model": reward_model,
@@ -59,7 +59,7 @@ if __name__ == "__main__":
                     "answer": ground_truth,
                     "question": question,
                 },
-                "env_kwargs": {"ground_truth": ground_truth, "question": question, "data_source": 'new_math_dapo'}
+                "env_kwargs": {"ground_truth": ground_truth, "question": question, "data_source": 'math_kpo'}
 
             }
             return data
@@ -75,7 +75,7 @@ if __name__ == "__main__":
             if not isinstance(ground_truth, str):
                 ground_truth = str(ground_truth)
             data = {
-                "data_source": 'new_math_dapo',
+                "data_source": 'math_kpo',
                 "data_source2": data_source,
                 "ability": ability,
                 "reward_model": {"style": "rule", "ground_truth": ground_truth},
@@ -91,7 +91,7 @@ if __name__ == "__main__":
                     "answer": ground_truth,
                     "question": question,
                 },
-                "env_kwargs": {"ground_truth": ground_truth, "question": question, "data_source": 'new_math_dapo'}
+                "env_kwargs": {"ground_truth": ground_truth, "question": question, "data_source": 'math_kpo'}
 
             }
             return data

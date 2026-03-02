@@ -79,15 +79,6 @@ def get_policy_loss_fn(name):
     """
     loss_name = name
     if loss_name not in POLICY_LOSS_REGISTRY:
-        # Lazy load KPO from recipe when using recipe.kpo
-        if loss_name == "kpo":
-            try:
-                from recipe.kpo import core_algos as kpo_core_algos
-                return kpo_core_algos.POLICY_LOSS_REGISTRY["kpo"]
-            except ImportError as e:
-                raise ValueError(
-                    f"loss_mode=kpo requires the KPO recipe. Run with `python -m recipe.kpo.main_kpo` or install recipe: {e}"
-                ) from e
         raise ValueError(
             f"Unsupported loss mode: {loss_name}. Supported modes are: {list(POLICY_LOSS_REGISTRY.keys())}"
         )
@@ -1505,6 +1496,205 @@ def compute_policy_loss_gspo(
         "actor/pg_clipfrac_lower": pg_clipfrac_lower.detach().item(),
     }
     return pg_loss, pg_metrics
+
+
+def kalman_gains_nonsteady_1d(Q, R, P0, T: int, device=None, dtype=None) -> torch.Tensor:
+    """
+    Return length-T non-steady Kalman gain sequence K_1..K_T
+
+    Model:
+      x_t = x_{t-1} + w_t,  w_t ~ N(0, Q)
+      z_t = x_t + v_t,      v_t ~ N(0, R)
+
+    For this model: posterior variance P_t = R * K_t
+    """
+    T = int(T)
+    assert T >= 1
+
+    Q = torch.as_tensor(Q, device=device, dtype=dtype)
+    R = torch.as_tensor(R, device=device, dtype=dtype)
+    P0 = torch.as_tensor(P0, device=device, dtype=dtype)
+
+    # normalize: q=Q/R, x0=P0/R
+    q = Q / R
+    x0 = P0 / R  # note: x_t will equal K_t in this model
+
+    # Möbius transform: x_t = (x_{t-1}+q)/(x_{t-1}+q+1)
+    # matrix M = [[1, q],[1, q+1]], det=1
+    s = 1.0 + 0.5 * q  # trace = q+2 => s=(q+2)/2
+
+    k = torch.arange(T, device=device, dtype=dtype)  # 0..T-1 corresponds to U_0..U_{T-1}
+
+    tiny = torch.as_tensor(1e-12, device=device, dtype=dtype)
+    use_limit = (q.abs() < tiny)
+
+    # eta = arcosh(s) = log(s + sqrt(s^2-1))
+    eta = torch.log(s + torch.sqrt(torch.clamp(s * s - 1.0, min=0.0)))
+
+    # U_n(s) = sinh((n+1)eta)/sinh(eta)
+    denom = torch.sinh(eta)
+    U = torch.sinh((k + 1.0) * eta) / torch.clamp(denom, min=1e-20)
+    U = torch.where(use_limit, (k + 1.0), U)  # q->0 => s->1 => U_n(1)=n+1
+
+    # U_{t-2} uses U_-1=0
+    U_prev = torch.cat([torch.zeros(1, device=device, dtype=dtype), U[:-1]], dim=0)
+
+    # M^t = U_{t-1} M - U_{t-2} I
+    A = U - U_prev
+    B = U * q
+    C = U
+    D = U * (q + 1.0) - U_prev
+
+    # x_t = (A x0 + B)/(C x0 + D) ; here x_t == K_t
+    x_t = (A * x0 + B) / (C * x0 + D)
+    K_t = torch.clamp(x_t, 1e-6, 1.0 - 1e-6)
+    return K_t  # (T,)
+
+
+def kalman_filter(
+    z_logratio: torch.Tensor,  # (B,T)
+    mask: torch.Tensor,        # (B,T) typical: 1 for valid, 0 for padding
+    Q: float = 1e-5,
+    R: float = 1.0,
+    P0: float = 0.0,
+    x0: float = 0.0,
+    eps: float = 1e-30,
+    exp_clip: float = 80.0,    # under float32 exp(>~88) overflows; 80 is safer
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Causal kalman filtering; parallel implementation (cumsum/exp).
+    x_t = (1-K_t) x_{t-1} + K_t z_t
+
+    Returns:
+      x_hat: (B,T)
+      P:     (B,T) posterior variance (for this model P_t = R*K_t)
+      K:     (1,T)
+    """
+    assert z_logratio.dim() == 2 and mask.shape == z_logratio.shape
+    B, T = z_logratio.shape
+    device = z_logratio.device
+    out_dtype = z_logratio.dtype
+
+    compute_dtype = torch.float32
+    z = z_logratio.to(compute_dtype)
+    m = mask.to(compute_dtype)
+
+    # Typical padding mask: zero out invalid positions
+    z = z * m
+
+    # 1) non-steady gains (only depend on Q,R,P0,T)
+    K_seq = kalman_gains_nonsteady_1d(Q, R, P0, T, device=device, dtype=compute_dtype)  # (T,)
+    K = K_seq.view(1, T)  # (1,T)
+
+    # posterior variance: P_t = R * K_t
+    R_t = torch.as_tensor(R, device=device, dtype=compute_dtype)
+    P = (R_t * K).expand(B, T) * m
+
+    # 2) Parallel recurrence:
+    # x_t = a_t x_{t-1} + K_t z_t,  a_t = 1-K_t
+    # Let A_t = Π_{j<=t} a_j, y_t = x_t / A_t
+    # then y_t = x0 + Σ_{i<=t} (K_i z_i / A_i)
+    a = (1.0 - K_seq).clamp_min(1e-12)          # avoid log(0)
+    logA = torch.cumsum(torch.log(a), dim=0)    # (T,)
+
+    # A may underflow; invA may overflow -> clamp exponent
+    log_eps = torch.log(torch.as_tensor(eps, device=device, dtype=compute_dtype))
+    logA_clamped = torch.clamp(logA, min=log_eps)
+
+    A = torch.exp(logA_clamped)                 # (T,)
+    inv_logA = (-logA_clamped).clamp(max=exp_clip)
+    invA = torch.exp(inv_logA)                  # (T,)
+
+    c = K_seq * invA                            # (T,)
+    S = torch.cumsum(z * c.view(1, T), dim=-1)  # (B,T)
+
+    x0_t = torch.as_tensor(x0, device=device, dtype=compute_dtype)
+    x_hat = (A.view(1, T) * (S + x0_t)) * m
+
+    return x_hat.to(out_dtype), P.to(out_dtype), K.to(out_dtype)
+
+@register_policy_loss("kpo")
+def compute_policy_loss_kpo(
+    old_log_prob: torch.Tensor,
+    log_prob: torch.Tensor,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    loss_agg_mode: str = "seq-mean-token-mean",
+    config: Optional["ActorConfig"] = None,
+    rollout_is_weights: torch.Tensor | None = None,
+    debug: bool = False,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+
+    assert config is not None
+        
+    clip_ratio_low = config.clip_ratio_low if config.clip_ratio_low is not None else config.clip_ratio
+    clip_ratio_high = config.clip_ratio_high if config.clip_ratio_high is not None else config.clip_ratio
+
+    # token log-ratio observation z_t
+    negative_approx_kl = log_prob - old_log_prob  # (B,T)
+
+    is_clip = getattr(config, "is_clip", True)
+    Q = getattr(config, "kalman_Q", 1e-6)
+    R = getattr(config, "kalman_R", 1)
+
+    z_det = negative_approx_kl.detach()
+    x_hat, P, K = kalman_filter(
+        z_logratio=z_det,
+        mask=response_mask,
+        Q=Q,
+        R=R,
+        P0=0.0,
+        x0=0.0,
+    )
+    
+    log_kf_importance_ratio = log_prob - log_prob.detach() + x_hat.detach()
+    log_kf_importance_ratio = torch.clamp(log_kf_importance_ratio, max=10.0)
+    kf_importance_ratio = torch.exp(log_kf_importance_ratio)
+
+    if is_clip:
+        pg_losses1 = -advantages * kf_importance_ratio
+        pg_losses2 = -advantages * torch.clamp(kf_importance_ratio, 1.0 - clip_ratio_low, 1.0 + clip_ratio_high)
+        pg_losses = torch.maximum(pg_losses1, pg_losses2)
+    else:
+        # --- Unclipped objective (NO PPO clipping) ---
+        pg_losses = -advantages * kf_importance_ratio
+        pg_losses1 = pg_losses2 = pg_losses  # for metrics, clipfrac=0
+
+    if rollout_is_weights is not None:
+        pg_losses = pg_losses * rollout_is_weights
+
+    pg_loss = agg_loss(
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **config.global_batch_info,
+    )
+
+    # metrics
+    pg_clipfrac = verl_F.masked_mean(torch.gt(pg_losses2, pg_losses1).float(), response_mask)
+    pg_clipfrac_lower = torch.tensor(0.0, device=pg_loss.device)
+
+    ppo_kl = verl_F.masked_mean(-(log_prob - old_log_prob), response_mask)
+
+    pg_metrics = {
+        "actor/pg_clipfrac": pg_clipfrac.detach().item(),
+        "actor/ppo_kl": ppo_kl.detach().item(),
+        "actor/pg_clipfrac_lower": pg_clipfrac_lower.detach().item(),
+        "actor/sequence_ratio_mean": kf_importance_ratio.detach().mean().item(),
+    }
+
+    debug_metrics = {
+        "token_ratio": torch.exp(negative_approx_kl).detach(),
+        "smoothed_token_ratio": kf_importance_ratio.detach(),
+        "sequence_ratio_mean": kf_importance_ratio.detach().mean().item(),  
+        "pg_clipfrac": pg_clipfrac.detach().item(),
+    }
+
+    if debug:
+        return pg_loss, debug_metrics
+    else:
+        return pg_loss, pg_metrics
+
 
 
 @register_policy_loss("sapo")
