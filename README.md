@@ -2,7 +2,7 @@
 
 # KPO: Online Causal Kalman Filtering for Stable and Effective Policy Optimization
 
-[![arXiv](https://img.shields.io/badge/arXiv-2602.10609-b31b1b.svg)](https://arxiv.org/abs/2602.10609)
+[![arXiv](https://img.shields.io/badge/arXiv-2602.10609-b31b1b.svg)](https://arxiv.org/pdf/2602.10609)
 [![HF Daily Paper](https://img.shields.io/badge/HF-Daily%20Paper-FFD21E.svg)](https://huggingface.co/papers/2602.10609)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub stars](https://img.shields.io/github/stars/shuohe1995/verl-kpo.svg)](https://github.com/shuohe1995/verl-kpo)
