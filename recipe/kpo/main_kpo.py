@@ -155,9 +155,10 @@ class TaskRunner:
         # Note: sync mode validation is now handled in RolloutConfig.__post_init__
         # Always use async worker since sync mode is deprecated and rejected
         if config.actor_rollout_ref.actor.strategy in {"fsdp", "fsdp2"}:
-            from verl.workers.fsdp_workers import AsyncActorRolloutRefWorker
+            # Use KPO worker so that POLICY_LOSS_REGISTRY gets "kpo" before dp_actor loads
+            from recipe.kpo.kpo_fsdp_workers import KpoAsyncActorRolloutRefWorker
 
-            actor_rollout_cls = AsyncActorRolloutRefWorker
+            actor_rollout_cls = KpoAsyncActorRolloutRefWorker
             ray_worker_group_cls = RayWorkerGroup
 
         elif config.actor_rollout_ref.actor.strategy == "megatron":
