@@ -110,7 +110,7 @@ entropy_checkpointing=true # This enables entropy recomputation specifically for
 
 # ------------------------------------- train/val data preparation ---------------------------------------
 
-python examples/data_preprocess/drmas_math.py --local_dir /mnt/raid/data/shuo.he/math
+python examples/data_preprocess/kpo_math.py --local_dir ${HOME}/verl/data/math
 
 
 # set the paths
