@@ -84,7 +84,7 @@ verl/
 
 This codebase is built upon [veRL](https://github.com/volcengine/verl). The KPO policy loss and Kalman filtering are integrated into verl's PPO/GRPO trainer and core algorithms.
 
-The math reward is adapted from [Dr. MAS](https://github.com/langfengQ/DrMAS) and DAPO-style math evaluation.
+The math reward is adapted from [Dr. MAS](https://github.com/langfengQ/DrMAS) and DAPO-style math evaluation [DAPO](https://github.com/verl-project/verl-recipe/tree/3490a22a0a3adeb7e4787fe70b1060b642efbae4/dapo), [DeepScaleR](https://github.com/rllm-org/rllm).
 
 We extend our gratitude to the authors and contributors of these projects for their valuable work.
 
