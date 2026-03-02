@@ -89,9 +89,8 @@ overlong_penalty_factor=1.0
 
 # Paths and namings
 SFT_MODEL=$(basename $MODEL_PATH)
-exp_name="${loss_mode}-epslow-${clip_ratio_low}-epshigh-${clip_ratio_high}-${SFT_MODEL}-now-noadaclip-causal-q1e-6-r1"
-CKPTS_DIR=/mnt/raid/data/shuohe/checkpoints/${loss_mode}/${exp_name}
-#ollout_data_dir=/mnt/raid/data/shuohe/rollout_data/${exp_name}
+exp_name="${loss_mode}-is_clip-${is_clip}-epslow-${clip_ratio_low}-epshigh-${clip_ratio_high}-${SFT_MODEL}-q${kalman_q}-r${kalman_r}"
+CKPTS_DIR=${CKPTS_DIR}/${loss_mode}/${exp_name}
 
 # Sampling params at rollouts
 temperature=1.0
